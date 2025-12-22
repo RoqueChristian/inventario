@@ -28,10 +28,10 @@ def load_data(file_path, tipo=None):
     try:
         df = pd.read_csv(file_path, sep=SEP, encoding=ENCODING, decimal=',')
         
-        # NORMALIZAÇÃO DE SCHEMA: Resolve o KeyError tornando tudo minúsculo
+        # NORMALIZAÇÃO DE SCHEMA
         df.columns = [c.lower() for c in df.columns]
         
-        # Conversão de Datas (Baseado no tipo)
+        # Conversão de Datas
         col_data = f'dtmov_{tipo}' if tipo else 'data_atualizacao'
         if col_data in df.columns:
             df[col_data] = pd.to_datetime(df[col_data], errors='coerce')
@@ -83,7 +83,7 @@ def main():
     
     sel_filial = st.sidebar.selectbox("Filial", options=["Todas"] + list_filiais)
 
-    # Lógica de Filtragem (Resiliente a nomes de colunas diferentes entre tabelas)
+    # Lógica de Filtragem
     def aplicar_filtro(df, col):
         if df.empty or sel_filial == "Todas": return df
         return df[df[col] == sel_filial].copy()
@@ -109,7 +109,7 @@ def main():
 
     st.markdown("---")
 
-    # 2. Séries Temporais
+    # 2. Séries Temporais com Labels de Valor
     st.header("📈 Evolução das Movimentações")
     c1, c2 = st.columns(2)
 
@@ -117,17 +117,51 @@ def main():
         if not df_ent_f.empty and 'dtmov_entrada' in df_ent_f.columns:
             df_ent_f['mes_ano'] = df_ent_f['dtmov_entrada'].dt.to_period('M').astype(str)
             ds_e = df_ent_f.groupby('mes_ano')['vlr_entrada'].sum().reset_index()
-            st.altair_chart(alt.Chart(ds_e).mark_bar(color='#1f77b4').encode(
-                x='mes_ano:O', y='vlr_entrada:Q', tooltip=['mes_ano', 'vlr_entrada']
-            ).properties(title="Entradas (EI)"), use_container_width=True)
+            
+            # Gráfico de Barras
+            base_e = alt.Chart(ds_e).encode(
+                x=alt.X('mes_ano:O', title='Mês/Ano'),
+                y=alt.Y('vlr_entrada:Q', title='Valor Total')
+            )
+            
+            bars_e = base_e.mark_bar(color='#1f77b4')
+            
+            # Adição de Labels (Texto)
+            labels_e = base_e.mark_text(
+                align='center',
+                baseline='bottom',
+                dy=-5,  # Afasta o texto do topo da barra
+                color='#1f77b4'
+            ).encode(
+                text=alt.Text('vlr_entrada:Q', format='.2s') # Formato compacto (ex: 2.5M)
+            )
+            
+            st.altair_chart((bars_e + labels_e).properties(title="Entradas (EI)"), use_container_width=True)
 
     with c2:
         if not df_sai_f.empty and 'dtmov_saida' in df_sai_f.columns:
             df_sai_f['mes_ano'] = df_sai_f['dtmov_saida'].dt.to_period('M').astype(str)
             ds_s = df_sai_f.groupby('mes_ano')['vlr_saida'].sum().reset_index()
-            st.altair_chart(alt.Chart(ds_s).mark_bar(color='#d62728').encode(
-                x='mes_ano:O', y='vlr_saida:Q', tooltip=['mes_ano', 'vlr_saida']
-            ).properties(title="Saídas (SI)"), use_container_width=True)
+            
+            # Gráfico de Barras
+            base_s = alt.Chart(ds_s).encode(
+                x=alt.X('mes_ano:O', title='Mês/Ano'),
+                y=alt.Y('vlr_saida:Q', title='Valor Total')
+            )
+            
+            bars_s = base_s.mark_bar(color='#d62728')
+            
+            # Adição de Labels (Texto)
+            labels_s = base_s.mark_text(
+                align='center',
+                baseline='bottom',
+                dy=-5,
+                color='#d62728'
+            ).encode(
+                text=alt.Text('vlr_saida:Q', format='.2s')
+            )
+            
+            st.altair_chart((bars_s + labels_s).properties(title="Saídas (SI)"), use_container_width=True)
 
     # 3. Detalhamento em Abas
     st.markdown("---")
@@ -136,14 +170,16 @@ def main():
     with t_ent:
         if not df_ent_f.empty:
             df_e_d = df_ent_f.copy()
-            df_e_d['dtmov_entrada'] = df_e_d['dtmov_entrada'].dt.strftime('%d/%m/%Y')
+            if 'dtmov_entrada' in df_e_d.columns:
+                df_e_d['dtmov_entrada'] = df_e_d['dtmov_entrada'].dt.strftime('%d/%m/%Y')
             df_e_d['vlr_entrada'] = df_e_d['vlr_entrada'].apply(formata_moeda)
             st.dataframe(df_e_d, use_container_width=True, hide_index=True)
 
     with t_sai:
         if not df_sai_f.empty:
             df_s_d = df_sai_f.copy()
-            df_s_d['dtmov_saida'] = df_s_d['dtmov_saida'].dt.strftime('%d/%m/%Y')
+            if 'dtmov_saida' in df_s_d.columns:
+                df_s_d['dtmov_saida'] = df_s_d['dtmov_saida'].dt.strftime('%d/%m/%Y')
             df_s_d['vlr_saida'] = df_s_d['vlr_saida'].apply(formata_moeda)
             st.dataframe(df_s_d, use_container_width=True, hide_index=True)
 
